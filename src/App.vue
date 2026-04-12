@@ -30,6 +30,35 @@
       <JsonNode :data="jsonData" :name="'Root'" :depth="0" :search="searchQuery" :expandSignal="expandTrigger"
         :collapseSignal="collapseTrigger" />
     </main>
+
+    <div class="fixed-actions">
+      <button class="action-btn" @click="openPasteModal">
+        📋 Paste JSON
+      </button>
+      <a href="https://github.com/0necloud/JSON-Viewer" target="_blank" rel="noopener noreferrer"
+        class="action-btn github-btn">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+          <path
+            d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+        </svg>
+        GitHub
+      </a>
+    </div>
+
+    <div v-if="showModal" class="modal-overlay" @click.self="closePasteModal">
+      <div class="modal-content">
+        <h3 class="modal-title">Paste Custom JSON</h3>
+        <textarea v-model="pastedText" class="paste-area"
+          placeholder="{&#10;  &#34;key&#34;: &#34;value&#34;&#10;}"></textarea>
+        <div v-if="modalError" class="error-msg modal-error">
+          > ERROR: {{ modalError }}
+        </div>
+        <div class="modal-buttons">
+          <button class="secondary-btn" @click="closePasteModal">Cancel</button>
+          <button class="primary-btn" @click="applyPastedJson">Render JSON</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -43,15 +72,54 @@ const loading = ref(false);
 const error = ref(null);
 
 // Search and Toggle States
-const rawSearch = ref('');     // What the user types
-const searchQuery = ref('');   // What is passed to the nodes
-const autoCollapse = ref(true); // Toggle state
+const rawSearch = ref('');
+const searchQuery = ref('');
+const autoCollapse = ref(true);
 
 const expandTrigger = ref(0);
 const collapseTrigger = ref(0);
 
 const expandAll = () => expandTrigger.value++;
 const collapseAll = () => collapseTrigger.value++;
+
+const showModal = ref(false);
+const pastedText = ref('');
+const modalError = ref(null);
+
+const openPasteModal = () => {
+  showModal.value = true;
+  modalError.value = null;
+};
+
+const closePasteModal = () => {
+  showModal.value = false;
+  modalError.value = null;
+  pastedText.value = '';
+};
+
+const applyPastedJson = () => {
+  if (!pastedText.value.trim()) {
+    modalError.value = 'JSON field is empty.';
+    return;
+  }
+
+  try {
+    const parsedData = JSON.parse(pastedText.value);
+
+    jsonData.value = parsedData;
+    error.value = null;
+    apiUrl.value = '';
+
+    // Clear the URL parameter
+    const url = new URL(window.location);
+    url.searchParams.delete('url');
+    window.history.pushState({}, '', url);
+
+    closePasteModal();
+  } catch (err) {
+    modalError.value = `Invalid JSON format (${err.message})`;
+  }
+};
 
 // Watch the user's typing to coordinate the collapse -> search flow
 watch(rawSearch, async (newVal) => {
@@ -60,7 +128,7 @@ watch(rawSearch, async (newVal) => {
     // Wait for Vue to process the collapse signal across all recursive components
     await nextTick();
   }
-  // Now apply the new search string to trigger the expansion
+  // Apply the new search string to trigger the expansion
   searchQuery.value = newVal;
 });
 
@@ -106,7 +174,6 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
-/* Previous Styles Remain */
 .json-viewer-app {
   max-width: 1000px;
   margin: 0 auto;
@@ -205,7 +272,6 @@ input[type="text"]:focus {
   min-width: 600px;
 }
 
-/* --- New Toggle Switch Styles --- */
 .toggle-container {
   display: flex;
   align-items: center;
@@ -256,6 +322,121 @@ input[type="text"]:focus {
   margin-top: 1px;
 }
 
+.fixed-actions {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  gap: 12px;
+  z-index: 100;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 50px;
+  background-color: #1e1e2e;
+  color: #cdd6f4;
+  border: 1px solid #313244;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.action-btn:hover {
+  background-color: #313244;
+  transform: translateY(-2px);
+}
+
+.github-btn:hover {
+  color: #89b4fa;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(17, 17, 27, 0.8);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
+}
+
+.modal-content {
+  background: #1e1e2e;
+  border: 1px solid #313244;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 600px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 18px;
+  color: #cdd6f4;
+}
+
+.paste-area {
+  width: 100%;
+  min-height: 250px;
+  background: #11111b;
+  border: 1px solid #313244;
+  border-radius: 8px;
+  color: #a6e3a1;
+  padding: 16px;
+  font-family: 'Consolas', monospace;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.paste-area:focus {
+  outline: none;
+  border-color: #89b4fa;
+}
+
+.modal-error {
+  margin-bottom: 0;
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.secondary-btn {
+  padding: 0 20px;
+  height: 42px;
+  background-color: transparent;
+  color: #a6adc8;
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.secondary-btn:hover {
+  background-color: #313244;
+  color: #cdd6f4;
+}
+
 /* --- Mobile Responsiveness --- */
 @media (max-width: 600px) {
   .json-viewer-app {
@@ -290,6 +471,22 @@ input[type="text"]:focus {
     flex-grow: 1;
     text-align: center;
     padding: 12px;
+  }
+
+  .fixed-actions {
+    bottom: 8px;
+    right: 16px;
+    left: 16px;
+    justify-content: space-between;
+  }
+
+  .action-btn {
+    flex-grow: 1;
+    justify-content: center;
+  }
+
+  .modal-content {
+    padding: 16px;
   }
 }
 </style>
